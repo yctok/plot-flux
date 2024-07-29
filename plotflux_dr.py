@@ -18,7 +18,7 @@ import B2pl_method as bm
 def main(plotall):
 
     print("Initializing SOLPSxport")
-    xp = fp.SOLPSxport(workdir = os.getcwd())
+    xp = fp.fluxplot(workdir = os.getcwd())
 
     print("Getting flux profiles")
     xp.getSOLPSfluxProfs(plotit= plotall)
