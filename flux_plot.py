@@ -51,8 +51,6 @@ class fluxplot:
         else:
             print('WARNING: Need to source setup.csh for SOLPS-ITER distribution for complete SOLPSxport workflow')
 
-        self.timeid = None
-
 
 
     def getSOLPSfluxProfs(self, plotit = False):
