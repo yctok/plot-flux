@@ -19,9 +19,12 @@ def main(plotall):
 
     print("Initializing SOLPSxport")
     xp = fp.fluxplot(workdir = os.getcwd())
-
+    
+    print("Running getSOLPSlast10Profs")
+    xp.getSOLPSlast10Profs(plotit = False, use_existing_last10 = False)
+    
     print("Getting flux profiles")
-    xp.getSOLPSfluxProfs(plotit= plotall)
+    xp.getSOLPSfluxProfs(plotit = plotall)
 
 
 # --- Launch main() ----------------------------------------------------------------------
