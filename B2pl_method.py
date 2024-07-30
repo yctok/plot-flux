@@ -76,4 +76,29 @@ def B2pl(cmds, wdir='.', debug=False):
     x = x[0:(len(x) // 2)]  # used to be: x=x[0:(len(x)/2)-1], chopped final value
     y = y[0:(len(y) // 2)]
 
-    return x, y        
+    return x, y
+
+
+def readProf(fname, wdir='.'):
+    """
+    reads contents of text file into two lists, returns them as numpy arrays
+    """
+
+    fname = path.join(wdir, fname)
+    x, y = [], []
+
+    with open(fname) as f:
+        lines = f.readlines()
+
+    for line in lines:
+        elements = line.split()
+
+        if elements[0] == '#':
+            pass
+        else:
+            x.append(float(elements[0]))
+            y.append(float(elements[1]))
+
+    return x, y
+
+
