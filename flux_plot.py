@@ -51,9 +51,114 @@ class fluxplot:
         else:
             print('WARNING: Need to source setup.csh for SOLPS-ITER distribution for complete SOLPSxport workflow')
 
+    
+    def getSOLPSlast10Profs(self, plotit = False, use_existing_last10 = False):
+        """
+        Generates and reads the .last10 files (produced by running '2d_profiles', which looks
+        at the last 10 time steps in the run.log file)
+        """
+        working = str(self.data['workdir'])
 
+        olddir = os.getcwd()
+        os.chdir(working)
+        if working[-1] != '/': working += '/'
+        # Call 2d_profiles as default, so you don't accidentally look at old time steps
+        if (not use_existing_last10) or (not os.path.isfile(working + 'ne3da.last10')):
+            print("Calling '2d_profiles' in directory: " + working)
+            os.system('2d_profiles')
 
-    def getSOLPSfluxProfs(self, plotit = False):
+        rx, ne_ = bm.readProf('ne3da.last10')
+        rx, dn_ = bm.readProf('dn3da.last10')
+        rx, te_ = bm.readProf('te3da.last10')
+        rx, ke_ = bm.readProf('ke3da.last10')
+        rx, ti_ = bm.readProf('ti3da.last10')
+        rx, ki_ = bm.readProf('ki3da.last10')
+        
+        os.chdir(olddir)
+
+        # Cast everything as np array so it doesn't break later when performing math operations
+        
+        ne = np.array(ne_)
+        dn = np.array(dn_)
+        te = np.array(te_)
+        ke = np.array(ke_)
+        ti = np.array(ti_)
+        ki = np.array(ki_)
+
+        last10_dic = {'rx':rx,'ne':ne,'dn':dn,'te':te,'ke':ke,'ti':ti,'ki':ki}
+    
+        self.data['solpsData']['last10'] = last10_dic
+        
+        if plotit:
+            if 'psiSOLPS' in self.data['solpsData'].keys():
+                psi = self.data['solpsData']['psiSOLPS']
+
+                f, ax = plt.subplots(2, 3, sharex = 'all')
+                ax[0, 0].plot(psi, ne / 1.0e19, 'r', lw = 2, label = 'SOLPS')
+                ax[0, 0].set_ylabel('n$_e$ (10$^{19}$ m$^{-3}$)')
+                ax[0, 0].grid('on')
+
+                ax[1, 0].plot(psi, dn, '-ok', lw = 2)
+                ax[1, 0].set_ylabel('D')
+                ax[1, 0].set_xlabel('$\psi_N$')
+
+                ax[0, 1].plot(psi, te / 1.0e3, 'r', lw = 2, label = 'SOLPS')
+                ax[0, 1].set_ylabel('Te (keV)')
+
+                ax[1, 1].plot(psi, ke, 'b', lw = 2)
+                ax[1, 1].set_ylabel('$\chi_e$')
+                ax[1, 1].set_xlabel('$\psi_N$')
+                ax[1, 1].set_xlim([np.min(psi) - 0.01, np.max(psi) + 0.01])
+
+                ax[0, 2].plot(psi, ti / 1.0e3, 'r', lw = 2, label = 'SOLPS')
+                ax[0, 2].set_ylabel('Ti (keV)')
+
+                ax[1, 2].plot(psi, ki, 'b', lw = 2)
+                ax[1, 2].set_ylabel('$\chi_i$')
+                ax[1, 2].set_xlabel('$\psi_N$')
+                ax[0, 0].set_title('last10 profiles')
+                plt.tight_layout()
+                
+                for i in range(2):
+                    for j in range(3):
+                        ax[i,j].grid('on')
+                        
+                plt.figure()
+                plt.plot(psi, dn / ke, 'k', lw=3, label = 'D / $\chi_e$')
+                plt.plot(psi, dn / ki, 'r', lw=3, label = 'D / $\chi_i$')
+                plt.grid('on')
+                ax[0, 0].set_xticks(np.arange(0.84, 1.05, 0.04))
+                plt.legend(loc='best')
+                        
+            else:
+                f, ax = plt.subplots(3, sharex = 'all')
+                ax[0].plot(rx, ne*1e-19, '-kx', lw=2)
+                ax[0].set_ylabel('n$_e$ (10$^{19}$ m$^{-3}$)')
+                ax[0].grid('on')
+                
+                ax[1].plot(rx, te, '-rx', lw=2, label = 'Te')
+                ax[1].plot(rx, ti, '-bx', lw=2, label = 'Ti')
+                ax[1].set_ylabel('T (eV)')
+                ax[1].legend(loc='best')
+                ax[1].grid('on')
+
+                ax[2].plot(rx, dn, '-kx', lw=3, label = 'dn')
+                ax[2].plot(rx, ke, '-gx', lw=3, label = 'ke')
+                ax[2].plot(rx, ki, '-mx', lw=1, label = 'ki')
+                ax[2].legend(loc='best')
+                ax[2].set_ylabel('D or $\chi$')
+                plt.grid('on')
+                plt.tight_layout()
+    
+                ax[-1].set_xlabel('rx')
+                
+            plt.show(block = False)
+    
+    
+
+   
+
+    def getSOLPSfluxProfs(self, plotit):
         
         
         
@@ -85,7 +190,12 @@ class fluxplot:
         self.data['solpsData']['profiles']['qe'] = np.array(qe)
         self.data['solpsData']['profiles']['qi'] = np.array(qi)
         
-        
+        print('the fluxD is:')
+        print(fluxD)
+        print('the fluxConv is:')
+        print(fluxConv)
+        print('the qe is:')
+        print(qe)
     
         if plotit:
                 
@@ -93,25 +203,38 @@ class fluxplot:
             ne_last10 = self.data['solpsData']['last10']['ne']
             rx_last10 = self.data['solpsData']['last10']['rx']  # very slightly different...
     
-            f, ax = plt.subplots(2, sharex = 'all')
+            f, ax = plt.subplots(3, sharex = 'all')
     
             ax[0].plot(rx_last10, ne_last10, '-kx', lw = 1, label = 'ne_last10')
             ax[0].plot(x_fTot, na, '--r*', lw=2, label = 'na')
             ax[0].set_ylabel('n (m$^{-3}$)')
             ax[0].legend(loc='best')
             ax[0].grid('on')
+            
+            """
             if self.data['workdir_short'] is not None:
                 ax[0].set_title(self.data['workdir_short'], fontsize=10)
             else:
                 ax[0].set_title('DIII-D shot ' + str(self.data['shot']) +
                                 ', ' + str(self.timeid) + ' ms')
+                
+            """
     
             ax[1].plot(x_fTot, fluxTot, '-ko', lw = 2, label = 'Tot')
-            ax[1].plot(x_fTot, fluxConv, '-bx', lw = 2, label = 'Conv')
             ax[1].legend(loc='best')
-            ax[1].set_ylabel('$\Gamma$')
+            ax[1].set_ylabel('$\Gamma_tot$')
             ax[1].grid('on')
+            
+            
+
+            ax[2].plot(x_fTot, fluxD, '-bx', lw = 2, label = 'Conv')
+            ax[2].legend(loc='best')
+            ax[2].set_ylabel('$\Gamma_D$')
+            ax[2].grid('on')
+            
+            
+            
             ax[-1].set_xlabel('x')
             
             ax[0].set_xlim([np.min(x_fTot) - 0.01, np.max(x_fTot) + 0.01])
-            plt.show(block = False)
+            plt.show(block = True)
