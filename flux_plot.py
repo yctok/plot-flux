@@ -22,7 +22,7 @@ eV = 1.60217662e-19
 
 class fluxplot:
 
-    def __init__(self, workdir, b2plot_dev_x11 = False):
+    def __init__(self, workdir, gfile_loc, b2plot_dev_x11 = False):
         """
         Make sure you source setup.csh or setup.ksh before running any of this!
         
@@ -32,17 +32,17 @@ class fluxplot:
           impurity_list   List of all the impurity species included in the plasma simulation
           b2plot_dev_x11  Set to True if you want a figure to pop up for every b2plot call
         """
-        # shot_loc_in_gfile_string = gfile_loc.rfind('g')
-        # shot = int(gfile_loc[shot_loc_in_gfile_string+1 : shot_loc_in_gfile_string+7])
+        shot_loc_in_gfile_string = gfile_loc.rfind('g')
+        shot = int(gfile_loc[shot_loc_in_gfile_string+1 : shot_loc_in_gfile_string+7])
 
-        # shot_ind_in_workdir = workdir.rfind(str(shot))
-        # if shot_ind_in_workdir > 0:
-        #     workdir_short = workdir[shot_ind_in_workdir:]
-        # else:
-        #     workdir_short = None
+        shot_ind_in_workdir = workdir.rfind(str(shot))
+        if shot_ind_in_workdir > 0:
+            workdir_short = workdir[shot_ind_in_workdir:]
+        else:
+            workdir_short = None
 
-        self.data = {'workdir': workdir, 
-                    'expData':{'fitProfs':{}}, 'solpsData':{'profiles':{}}}
+        self.data = {'workdir':workdir, 'workdir_short':workdir_short, 'gfile_loc': gfile_loc,
+                     'expData':{'fitProfs':{}}, 'solpsData':{'profiles':{}}}
 
         if 'B2PLOT_DEV' in os.environ.keys():
             if (not b2plot_dev_x11) and os.environ['B2PLOT_DEV'] == 'x11 ps':
@@ -51,7 +51,125 @@ class fluxplot:
         else:
             print('WARNING: Need to source setup.csh for SOLPS-ITER distribution for complete SOLPSxport workflow')
 
+        self.timeid = None
+
     
+
+    def calcPsiVals(self, plotit = False, shift=1):
+        """
+        Call b2plot to get the locations of each grid cell in psin space
+
+        Saves the values to dictionaries in self.data['solpsData']
+        """
+        from scipy import interpolate
+
+        """
+        Find grid corners first:
+          0: lower left
+          1: lower right
+          2: upper left
+          3: upper right
+
+        Average location of cells 0 and 2 for middle of 'top' surface, 
+        which is the top looking at outboard midplane
+        Don't average over whole cell, dR << dZ at outboard midplane 
+        and surface has curvature, so psin will be low
+
+        jxa = poloidal cell index for the outer midplane
+        crx = radial coordinate corner of grid [m]
+        cry = vertical coordinate corner of grid [m]
+        writ = write b2plot.write file
+        f.y = plot against y
+        """
+        wdir = self.data['workdir']
+
+        dsa, crLowerLeft = bm.B2pl('0 crx writ jxa f.y', wdir = wdir)
+        # dummy, crLowerRight = B2pl('1 crx writ jxa f.y', wdir = wdir)
+        # Only 2 unique psi values per cell, grab 0 and 2
+        dummy, crUpperLeft = bm.B2pl('2 crx writ jxa f.y', wdir = wdir)  # all x inds are the same
+        dummy, czLowerLeft = bm.B2pl('0 cry writ jxa f.y', wdir = wdir)
+        dummy, czUpperLeft = bm.B2pl('2 cry writ jxa f.y', wdir = wdir)
+        ncells = len(dummy)
+
+        g = bm.loadg(self.data['gfile_loc'])
+        d = float(shift)
+        psiN = (g['psirz'] - g['simag']) / (g['sibry'] - g['simag'])
+
+        dR = g['rdim'] / (g['nw'] - 1)
+        dZ = g['zdim'] / (g['nh'] - 1)
+
+        gR = []
+        for i in range(g['nw']):
+            gR.append(g['rleft'] + i * dR + d)
+
+        gZ = []
+        for i in range(g['nh']):
+            gZ.append(g['zmid'] - 0.5 * g['zdim'] + i * dZ)
+
+        gR = np.array(gR)
+        gZ = np.array(gZ)
+
+        R_solps_top = 0.5 * (np.array(crLowerLeft) + np.array(crUpperLeft))
+        Z_solps_top = 0.5 * (np.array(czLowerLeft) + np.array(czUpperLeft))
+
+        psiNinterp = interpolate.interp2d(gR, gZ, psiN, kind = 'cubic')
+
+        psi_solps = np.zeros(ncells)
+        for i in range(ncells):
+            psi_solps_LL = psiNinterp(crLowerLeft[i], czLowerLeft[i])
+            psi_solps_UL = psiNinterp(crUpperLeft[i], czUpperLeft[i])
+            psi_solps[i] = np.mean([psi_solps_LL,psi_solps_UL])
+        
+        
+
+        self.data['solpsData']['crLowerLeft'] = np.array(crLowerLeft)
+        self.data['solpsData']['czLowerLeft'] = np.array(czLowerLeft)
+        self.data['solpsData']['dsa'] = np.array(dsa)
+        self.data['solpsData']['psiSOLPS'] = np.array(psi_solps)
+        
+        #from IPython import embed; embed()
+
+        if plotit:
+            psiN_range = [np.min(psi_solps), np.max(psi_solps)]
+
+            psiN_copy = psiN.copy()
+            psiN_copy[psiN > psiN_range[1]] = np.nan
+            psiN_copy[psiN < psiN_range[0]] = np.nan
+            psin_masked = np.ma.masked_invalid(psiN_copy)
+
+            plt.figure()
+            plt.contourf(gR, gZ, psin_masked, levels=[psiN_range[0], 1, psiN_range[1]], colors = [])
+            # plt.pcolormesh(gR, gZ, psin_masked, cmap = 'inferno')
+            # plt.colorbar(ticks = [0.25,0.5,0.75,1])
+            plt.plot(g['rlim'], g['zlim'], 'k', lw = 2)
+            # plt.contour(gR, gZ, psiN, [1], colors='k')
+            # plt.contour(gR, gZ, psiN, [psiN_range[0]], colors='r', linestyles='dashed')
+            # plt.contour(gR, gZ, psiN, [psiN_range[1]], colors='r', linestyles='dashed')
+            gfile_name = self.data['gfile_loc'][self.data['gfile_loc'].rfind('/')+1:]
+            plt.title(gfile_name)
+            plt.axis('equal')
+            plt.xlabel('R (m)')
+            plt.ylabel('Z (m)')
+            plt.xticks([1.0, 1.5, 2.0, 2.5])
+            plt.yticks(np.arange(-1.5, 1.6, 0.5))
+            plt.xlim([np.min(gR), np.max(gR)])
+            plt.ylim([np.min(gZ), np.max(gZ)])
+            plt.plot(R_solps_top, Z_solps_top, 'g', lw=3)
+            plt.plot([1.94, 1.94], [-1.5, 1.5], ':k', lw=1)  # Thomson laser path
+            plt.tight_layout()
+
+            plt.figure()
+            plt.plot(R_solps_top, psi_solps, 'k', lw = 2)
+            plt.xlabel('R at midplane (m)')
+            plt.ylabel('$\psi_N$')
+
+            plt.show(block = False)
+
+
+
+
+
+
     def getSOLPSlast10Profs(self, plotit = False, use_existing_last10 = False):
         """
         Generates and reads the .last10 files (produced by running '2d_profiles', which looks
