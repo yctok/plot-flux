@@ -15,10 +15,13 @@ import B2pl_method as bm
 
 
 
-def main(plotall):
+def main(plotall, shift):
 
     print("Initializing SOLPSxport")
     xp = fp.fluxplot(workdir = os.getcwd())
+    
+    print("Running calcPsiVals")
+    xp.calcPsiVals(plotit= False, shift= shift)
     
     print("Running getSOLPSlast10Profs")
     xp.getSOLPSlast10Profs(plotit = False, use_existing_last10 = False)
@@ -39,6 +42,7 @@ if __name__ == '__main__':
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
 
     parser.add_argument('-p', '--plotall', help='plot flux profile', type= bool, default=None)
+    parser.add_argument('-g', '--gfileloc', help='location of profs_*.pkl saved profile file', type=str, default=None)
     
     args = parser.parse_args()
     
