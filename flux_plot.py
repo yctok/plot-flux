@@ -272,13 +272,9 @@ class fluxplot:
                 
             plt.show(block = False)
     
-    
-
-   
+      
 
     def getSOLPSfluxProfs(self, plotit):
-        
-        
         
         
         """
@@ -292,6 +288,9 @@ class fluxplot:
         # dummy, hy1 = bm.B2pl("hy1 writ jxa f.y")  # not used anymore
         dummy, qe = bm.B2pl("fhey sy m/ writ jxa f.y")
         dummy, qi = bm.B2pl("fhiy sy m/ writ jxa f.y")
+        dummy, core_qe = bm.B2pl("fhey sy m/ writ 0 f.x")
+        dummy, core_qe_dat = bm.B2pl("fhey writ 0 f.x")
+        dummy, sy = bm.B2pl("sy writ 0 f.x")
     
         for c in [fluxTot, fluxConv]:
             if not c:
@@ -314,6 +313,12 @@ class fluxplot:
         print(fluxConv)
         print('the qe is:')
         print(qe)
+        print('the radial cell area is:')
+        print(sy)
+        # print('the core_qe is:')
+        # print(core_qe)
+        # print('the core_qe_dat is:')
+        # print(core_qe_dat)
     
         if plotit:
                 
